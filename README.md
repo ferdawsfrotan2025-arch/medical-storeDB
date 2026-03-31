@@ -62,6 +62,16 @@ Recommended free setup:
 5. In Render, set `JWT_SECRET` to a strong random secret
 6. Deploy and open your Render app URL
 
+Alternative no-card setup:
+
+1. Push this repo to GitHub
+2. In Koyeb, create a Web Service from the GitHub repo
+3. Use the `buildpack` builder
+4. Set the build command to `npm install`
+5. Set the run command to `npm start` or rely on [Procfile](C:\Users\Computer Arena\Documents\New project\Procfile)
+6. Add `DATABASE_URL` and `JWT_SECRET` in Koyeb environment variables
+7. Deploy and open the `*.koyeb.app` URL
+
 Before production deployment, you should:
 
 1. Set a strong `JWT_SECRET`
