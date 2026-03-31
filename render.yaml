@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mediledger
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: JWT_SECRET
+        generateValue: true

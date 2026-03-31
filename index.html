@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medical Store Database App</title>
+  <meta name="theme-color" content="#0f5a44">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="loginScreen" class="auth-screen">
+    <div class="auth-card">
+      <p class="eyebrow" data-i18n="authEyebrow">Medical Store Access</p>
+      <h1>MediLedger</h1>
+      <p class="auth-copy" data-i18n="authCopy">Sign in to manage medicines, suppliers, invoices, and backups.</p>
+      <form id="loginForm" class="auth-form">
+        <label>
+          <span data-i18n="username">Username</span>
+          <input id="loginUsername" type="text" required placeholder="admin" data-i18n-placeholder="usernamePlaceholder">
+        </label>
+        <label>
+          <span data-i18n="password">Password</span>
+          <input id="loginPassword" type="password" required placeholder="admin123" data-i18n-placeholder="passwordPlaceholder">
+        </label>
+        <button type="submit" class="primary-btn" data-i18n="signIn">Sign In</button>
+      </form>
+      <p class="auth-hint" data-i18n="defaultLogin">Default login: admin / admin123</p>
+      <p id="loginMessage" class="status-message"></p>
+    </div>
+  </div>
+
+  <div id="appRoot" class="app-shell hidden">
+    <aside class="sidebar">
+      <div>
+        <p class="eyebrow" data-i18n="sidebarEyebrow">Medical Store</p>
+        <h1>MediLedger</h1>
+        <p class="sidebar-copy" data-i18n="sidebarCopy">A local database app for medicines, suppliers, sales, invoices, and backups.</p>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-link active" data-view="dashboard" data-i18n="navDashboard">Dashboard</button>
+        <button class="nav-link" data-view="inventory" data-i18n="navInventory">Inventory</button>
+        <button class="nav-link" data-view="suppliers" data-i18n="navSuppliers">Suppliers</button>
+        <button class="nav-link" data-view="sales" data-i18n="navSales">Sales</button>
+        <button class="nav-link" data-view="settings" data-i18n="navSettings">Settings</button>
+        <button class="nav-link" data-view="backup" data-i18n="navBackup">Backup</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <h2 data-i18n="sessionTitle">Session</h2>
+        <label class="language-control">
+          <span data-i18n="language">Language</span>
+          <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="fa">دری</option>
+          </select>
+        </label>
+        <p id="currentUserLabel" class="sidebar-copy">Signed in as admin</p>
+        <div class="sidebar-actions">
+          <button id="seedDataBtn" class="ghost-btn" data-i18n="loadSampleData">Load Sample Data</button>
+          <button id="clearDataBtn" class="danger-btn" data-i18n="clearAllData">Clear All Data</button>
+          <button id="installAppBtn" class="ghost-btn hidden" data-i18n="installApp">Install App</button>
+          <button id="logoutBtn" class="danger-btn" data-i18n="logout">Logout</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="hero">
+        <div>
+          <p class="eyebrow" data-i18n="storeDatabase">Store Database</p>
+          <h2 id="storeNameHeading">Manage stock, suppliers, and sales from one place.</h2>
+          <p id="todayLabel"></p>
+        </div>
+      </header>
+
+      <section id="dashboardView" class="view active">
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span data-i18n="totalMedicines">Total Medicines</span>
+            <strong id="totalMedicines">0</strong>
+          </article>
+          <article class="stat-card">
+            <span data-i18n="totalStockUnits">Total Stock Units</span>
+            <strong id="totalUnits">0</strong>
+          </article>
+          <article class="stat-card">
+            <span data-i18n="suppliers">Suppliers</span>
+            <strong id="totalSuppliers">0</strong>
+          </article>
+          <article class="stat-card">
+            <span data-i18n="salesToday">Sales Today</span>
+            <strong id="salesToday">0</strong>
+          </article>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="lowStockAlerts">Low Stock Alerts</h3>
+              <span id="lowStockCount" class="pill">0 items</span>
+            </div>
+            <div id="lowStockList" class="list-container empty-state" data-i18n="noLowStockItems">No low stock items.</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="expiringSoon">Expiring Soon</h3>
+              <span id="expiryCount" class="pill">0 items</span>
+            </div>
+            <div id="expiryList" class="list-container empty-state" data-i18n="noExpiringSoon">No medicines expiring soon.</div>
+          </section>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="businessSnapshot">Business Snapshot</h3>
+            </div>
+            <div class="snapshot-grid">
+              <div>
+                <span class="mini-label" data-i18n="store">Store</span>
+                <strong id="snapshotStoreName">MediLedger Pharmacy</strong>
+              </div>
+              <div>
+                <span class="mini-label" data-i18n="phone">Phone</span>
+                <strong id="snapshotPhone">Not set</strong>
+              </div>
+              <div>
+                <span class="mini-label" data-i18n="address">Address</span>
+                <strong id="snapshotAddress">Not set</strong>
+              </div>
+              <div>
+                <span class="mini-label" data-i18n="currency">Currency</span>
+                <strong id="snapshotCurrency">USD</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="invoiceReady">Invoice Ready</h3>
+            </div>
+            <p class="panel-copy" data-i18n="invoiceReadyCopy">Every sale can be opened as a printable invoice from the Sales register.</p>
+            <div id="lastInvoiceCard" class="empty-state" data-i18n="noInvoiceGenerated">No invoice generated yet.</div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3 data-i18n="recentSales">Recent Sales</h3>
+          </div>
+          <div id="recentSalesList" class="table-wrap empty-state" data-i18n="noSalesRecorded">No sales recorded yet.</div>
+        </section>
+      </section>
+
+      <section id="inventoryView" class="view">
+        <div class="panel split-panel">
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="addUpdateMedicine">Add / Update Medicine</h3>
+            </div>
+            <form id="medicineForm" class="form-grid">
+              <input type="hidden" id="medicineId">
+              <label>
+                <span data-i18n="medicineName">Medicine Name</span>
+                <input id="medicineName" type="text" required placeholder="Paracetamol 500mg" data-i18n-placeholder="medicineNamePlaceholder">
+              </label>
+              <label>
+                <span data-i18n="category">Category</span>
+                <input id="medicineCategory" type="text" required placeholder="Tablet, Syrup, Injection" data-i18n-placeholder="categoryPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="batchNo">Batch No</span>
+                <input id="medicineBatch" type="text" required placeholder="B-2026-001" data-i18n-placeholder="batchPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="supplier">Supplier</span>
+                <select id="medicineSupplier"></select>
+              </label>
+              <label>
+                <span data-i18n="purchasePrice">Purchase Price</span>
+                <input id="medicinePurchasePrice" type="number" min="0" step="0.01" required>
+              </label>
+              <label>
+                <span data-i18n="sellingPrice">Selling Price</span>
+                <input id="medicineSellingPrice" type="number" min="0" step="0.01" required>
+              </label>
+              <label>
+                <span data-i18n="quantity">Quantity</span>
+                <input id="medicineQuantity" type="number" min="0" required>
+              </label>
+              <label>
+                <span data-i18n="reorderLevel">Reorder Level</span>
+                <input id="medicineReorderLevel" type="number" min="0" required>
+              </label>
+              <label>
+                <span data-i18n="expiryDate">Expiry Date</span>
+                <input id="medicineExpiryDate" type="date" required>
+              </label>
+              <label>
+                <span data-i18n="storageLocation">Storage Location</span>
+                <input id="medicineLocation" type="text" placeholder="Shelf A-2" data-i18n-placeholder="storagePlaceholder">
+              </label>
+              <label class="full-width">
+                <span data-i18n="notes">Notes</span>
+                <textarea id="medicineNotes" rows="3" placeholder="Prescription only, keep refrigerated, etc." data-i18n-placeholder="notesPlaceholder"></textarea>
+              </label>
+              <div class="form-actions full-width">
+                <button type="submit" class="primary-btn" data-i18n="saveMedicine">Save Medicine</button>
+                <button type="button" id="resetMedicineBtn" class="ghost-btn" data-i18n="reset">Reset</button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="medicineInventory">Medicine Inventory</h3>
+              <input id="inventorySearch" type="search" placeholder="Search medicines or batch number" data-i18n-placeholder="inventorySearchPlaceholder">
+            </div>
+            <div id="inventoryTable" class="table-wrap empty-state" data-i18n="noMedicinesAdded">No medicines added yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="suppliersView" class="view">
+        <div class="panel split-panel">
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="addSupplier">Add Supplier</h3>
+            </div>
+            <form id="supplierForm" class="form-grid">
+              <input type="hidden" id="supplierId">
+              <label>
+                <span data-i18n="supplierName">Supplier Name</span>
+                <input id="supplierName" type="text" required placeholder="HealthCare Distributors" data-i18n-placeholder="supplierNamePlaceholder">
+              </label>
+              <label>
+                <span data-i18n="contactPerson">Contact Person</span>
+                <input id="supplierContact" type="text" required placeholder="Ahmad Khan" data-i18n-placeholder="contactPersonPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="phone">Phone</span>
+                <input id="supplierPhone" type="tel" required placeholder="+93 700 000 000" data-i18n-placeholder="phonePlaceholder">
+              </label>
+              <label>
+                <span data-i18n="email">Email</span>
+                <input id="supplierEmail" type="email" placeholder="supplier@example.com" data-i18n-placeholder="emailPlaceholder">
+              </label>
+              <label class="full-width">
+                <span data-i18n="address">Address</span>
+                <textarea id="supplierAddress" rows="3" placeholder="Street, city, region" data-i18n-placeholder="addressPlaceholder"></textarea>
+              </label>
+              <div class="form-actions full-width">
+                <button type="submit" class="primary-btn" data-i18n="saveSupplier">Save Supplier</button>
+                <button type="button" id="resetSupplierBtn" class="ghost-btn" data-i18n="reset">Reset</button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="supplierDirectory">Supplier Directory</h3>
+            </div>
+            <div id="supplierTable" class="table-wrap empty-state" data-i18n="noSuppliersAdded">No suppliers added yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="salesView" class="view">
+        <div class="panel split-panel">
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="recordSale">Record Sale</h3>
+            </div>
+            <form id="saleForm" class="form-grid">
+              <label>
+                <span data-i18n="medicine">Medicine</span>
+                <select id="saleMedicine" required></select>
+              </label>
+              <label>
+                <span data-i18n="quantitySold">Quantity Sold</span>
+                <input id="saleQuantity" type="number" min="1" required>
+              </label>
+              <label>
+                <span data-i18n="customerName">Customer Name</span>
+                <input id="saleCustomer" type="text" placeholder="Optional" data-i18n-placeholder="optionalPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="saleDate">Sale Date</span>
+                <input id="saleDate" type="date" required>
+              </label>
+              <label>
+                <span data-i18n="paymentMethod">Payment Method</span>
+                <select id="salePaymentMethod">
+                  <option value="Cash" data-i18n="cash">Cash</option>
+                  <option value="Card" data-i18n="card">Card</option>
+                  <option value="Mobile Money" data-i18n="mobileMoney">Mobile Money</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="discountPercent">Discount (%)</span>
+                <input id="saleDiscount" type="number" min="0" max="100" step="0.01" value="0">
+              </label>
+              <div class="form-actions full-width">
+                <button type="submit" class="primary-btn" data-i18n="saveSale">Save Sale</button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="salesRegister">Sales Register</h3>
+            </div>
+            <div id="salesTable" class="table-wrap empty-state" data-i18n="noSalesRecorded">No sales recorded yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="settingsView" class="view">
+        <div class="panel split-panel">
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="storeProfile">Store Profile</h3>
+            </div>
+            <form id="settingsForm" class="form-grid">
+              <label>
+                <span data-i18n="storeName">Store Name</span>
+                <input id="storeName" type="text" required placeholder="MediLedger Pharmacy" data-i18n-placeholder="storeNamePlaceholder">
+              </label>
+              <label>
+                <span data-i18n="phone">Phone</span>
+                <input id="storePhone" type="tel" placeholder="+93 700 000 000" data-i18n-placeholder="phonePlaceholder">
+              </label>
+              <label class="full-width">
+                <span data-i18n="address">Address</span>
+                <textarea id="storeAddress" rows="3" placeholder="Street, city, region" data-i18n-placeholder="addressPlaceholder"></textarea>
+              </label>
+              <label>
+                <span data-i18n="currency">Currency</span>
+                <select id="storeCurrency">
+                  <option value="USD">USD</option>
+                  <option value="AFN">AFN</option>
+                  <option value="PKR">PKR</option>
+                  <option value="INR">INR</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="invoiceFooter">Invoice Footer</span>
+                <input id="invoiceFooter" type="text" placeholder="Thank you for your purchase" data-i18n-placeholder="invoiceFooterPlaceholder">
+              </label>
+              <div class="form-actions full-width">
+                <button type="submit" class="primary-btn" data-i18n="saveSettings">Save Settings</button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <div class="panel-header">
+              <h3 data-i18n="security">Security</h3>
+            </div>
+            <form id="passwordForm" class="form-grid">
+              <label>
+                <span data-i18n="currentPassword">Current Password</span>
+                <input id="currentPassword" type="password" required>
+              </label>
+              <label>
+                <span data-i18n="newPassword">New Password</span>
+                <input id="newPassword" type="password" required>
+              </label>
+              <div class="form-actions full-width">
+                <button type="submit" class="primary-btn" data-i18n="changePassword">Change Password</button>
+              </div>
+            </form>
+            <p id="settingsMessage" class="status-message"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="backupView" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 data-i18n="backupRestore">Backup & Restore</h3>
+          </div>
+          <div class="backup-grid">
+            <article class="backup-card">
+              <h4 data-i18n="exportData">Export Data</h4>
+              <p data-i18n="exportDataCopy">Download medicines, suppliers, sales, settings, and users into one JSON backup file.</p>
+              <button id="exportBtn" class="primary-btn" data-i18n="exportBackup">Export Backup</button>
+            </article>
+            <article class="backup-card">
+              <h4 data-i18n="importData">Import Data</h4>
+              <p data-i18n="importDataCopy">Restore app data from a previous JSON backup file.</p>
+              <input id="importFile" type="file" accept="application/json">
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="invoiceDialog" class="invoice-dialog">
+    <div id="invoiceContent" class="invoice-paper"></div>
+    <div class="dialog-actions">
+      <button id="printInvoiceBtn" class="primary-btn" data-i18n="printInvoice">Print Invoice</button>
+      <button id="closeInvoiceBtn" class="ghost-btn" data-i18n="close">Close</button>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
