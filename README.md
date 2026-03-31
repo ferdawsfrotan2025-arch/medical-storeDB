@@ -65,12 +65,11 @@ Recommended free setup:
 Alternative no-card setup:
 
 1. Push this repo to GitHub
-2. In Koyeb, create a Web Service from the GitHub repo
-3. Use the `buildpack` builder
-4. Set the build command to `npm install`
-5. Set the run command to `npm start` or rely on [Procfile](C:\Users\Computer Arena\Documents\New project\Procfile)
-6. Add `DATABASE_URL` and `JWT_SECRET` in Koyeb environment variables
-7. Deploy and open the `*.koyeb.app` URL
+2. In Railway, create a project from the GitHub repo
+3. Railway will detect the Node app and can also use [railway.json](C:\Users\Computer Arena\Documents\New project\railway.json)
+4. Add `DATABASE_URL` and `JWT_SECRET` in Railway variables
+5. Generate a public domain in Railway networking/settings
+6. Deploy and open the Railway URL
 
 Before production deployment, you should:
 
