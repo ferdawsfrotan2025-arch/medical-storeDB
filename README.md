@@ -41,6 +41,7 @@ Change the password after first login.
 You can also just double-click [Launch-MediLedger.cmd](C:\Users\Computer Arena\Documents\New project\Launch-MediLedger.cmd). It will install dependencies the first time if needed, then start the server and open the app in your browser.
 
 If you want to run against Neon locally, put your values in `.env`. This project already reads `PORT`, `JWT_SECRET`, and `DATABASE_URL` from that file.
+It also supports `NODE_ENV`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_DISPLAY_NAME` for safer first-time production setup.
 
 ## Important Files
 
@@ -70,6 +71,22 @@ Alternative no-card setup:
 4. Add `DATABASE_URL` and `JWT_SECRET` in Railway variables
 5. Generate a public domain in Railway networking/settings
 6. Deploy and open the Railway URL
+
+Recommended production variables:
+
+- `NODE_ENV=production`
+- `JWT_SECRET` = long random secret
+- `DATABASE_URL` = Neon connection string
+- `ADMIN_USERNAME` = your preferred first admin login
+- `ADMIN_PASSWORD` = strong password before first production deploy
+- `ADMIN_DISPLAY_NAME` = visible admin name
+
+Production checks:
+
+1. Change the default admin password immediately if the database was already seeded
+2. Confirm `/api/health` returns `{ "ok": true }`
+3. Keep Neon backups/export backups regularly
+4. Do not use the local SQLite file for public hosting
 
 Before production deployment, you should:
 

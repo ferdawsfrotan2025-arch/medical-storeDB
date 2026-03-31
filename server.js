@@ -11,9 +11,14 @@ const { Pool } = require("pg");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const NODE_ENV = process.env.NODE_ENV || "development";
+const IS_PRODUCTION = NODE_ENV === "production";
 const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret-in-production";
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const IS_POSTGRES = Boolean(DATABASE_URL);
+const DEFAULT_ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const DEFAULT_ADMIN_DISPLAY_NAME = process.env.ADMIN_DISPLAY_NAME || "Admin";
 const DB_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DB_DIR, "mediledger.sqlite");
 const PUBLIC_FILES = [
@@ -30,11 +35,65 @@ let SQL;
 let sqliteDb;
 let pgPool;
 
+if (process.env.TRUST_PROXY !== "false") {
+  app.set("trust proxy", 1);
+}
+
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  next();
+});
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function normalizeText(value, maxLength = 255) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function requireText(value, fieldName, maxLength = 255) {
+  const normalized = normalizeText(value, maxLength);
+  if (!normalized) {
+    const error = new Error(`${fieldName} is required.`);
+    error.status = 400;
+    throw error;
+  }
+  return normalized;
+}
+
+function requirePositiveNumber(value, fieldName, { allowZero = true, integer = false } = {}) {
+  const number = Number(value);
+  const valid = Number.isFinite(number) && (allowZero ? number >= 0 : number > 0) && (!integer || Number.isInteger(number));
+  if (!valid) {
+    const error = new Error(`${fieldName} is invalid.`);
+    error.status = 400;
+    throw error;
+  }
+  return number;
+}
+
+function requireDate(value, fieldName) {
+  const normalized = normalizeText(value, 30);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    const error = new Error(`${fieldName} is invalid.`);
+    error.status = 400;
+    throw error;
+  }
+  return normalized;
+}
+
+function cookieOptions(req) {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: IS_PRODUCTION || req.secure,
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
 }
 
 function ensureDbDir() {
@@ -229,10 +288,10 @@ async function initializeSchema() {
 async function initializeSeedData() {
   const hasUser = await queryOne("SELECT id FROM users LIMIT 1");
   if (!hasUser) {
-    const hash = bcrypt.hashSync("admin123", 10);
+    const hash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, 10);
     await run(
       "INSERT INTO users (id, username, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)",
-      ["user-admin", "admin", hash, "Admin", "Administrator"]
+      ["user-admin", DEFAULT_ADMIN_USERNAME, hash, DEFAULT_ADMIN_DISPLAY_NAME, "Administrator"]
     );
   }
 
@@ -246,6 +305,10 @@ async function initializeSeedData() {
 }
 
 async function initializeDatabase() {
+  if (IS_PRODUCTION && JWT_SECRET === "change-this-secret-in-production") {
+    throw new Error("JWT_SECRET must be set in production.");
+  }
+
   if (IS_POSTGRES) {
     await initializePostgres();
   } else {
@@ -331,6 +394,18 @@ for (const fileName of PUBLIC_FILES.filter((file) => file !== "index.html")) {
   app.get(`/${fileName}`, (_req, res) => sendStaticFile(res, fileName));
 }
 
+app.get("/api/health", asyncHandler(async (_req, res) => {
+  if (IS_POSTGRES) {
+    await pgPool.query("SELECT 1");
+  }
+
+  res.json({
+    ok: true,
+    environment: NODE_ENV,
+    databaseMode: IS_POSTGRES ? "postgres" : "sqlite"
+  });
+}));
+
 app.get("/api/auth/me", asyncHandler(async (req, res) => {
   const token = req.cookies.mediledger_token;
   if (!token) {
@@ -349,7 +424,8 @@ app.get("/api/auth/me", asyncHandler(async (req, res) => {
 }));
 
 app.post("/api/auth/login", asyncHandler(async (req, res) => {
-  const { username, password } = req.body;
+  const username = requireText(req.body.username, "Username", 80);
+  const password = String(req.body.password || "");
   const user = await queryOne("SELECT * FROM users WHERE username = ?", [username]);
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
@@ -357,12 +433,7 @@ app.post("/api/auth/login", asyncHandler(async (req, res) => {
   }
 
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
-  res.cookie("mediledger_token", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false,
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
+  res.cookie("mediledger_token", token, cookieOptions(req));
 
   return res.json({ currentUser: toUserPayload(user) });
 }));
@@ -373,11 +444,16 @@ app.post("/api/auth/logout", (_req, res) => {
 });
 
 app.post("/api/auth/password", authRequired, asyncHandler(async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
+  const currentPassword = String(req.body.currentPassword || "");
+  const newPassword = String(req.body.newPassword || "");
   const fullUser = await queryOne("SELECT * FROM users WHERE id = ?", [req.user.id]);
 
   if (!fullUser || !bcrypt.compareSync(currentPassword, fullUser.password_hash)) {
     return res.status(400).json({ error: "Current password is incorrect." });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "New password must be at least 8 characters long." });
   }
 
   const nextHash = bcrypt.hashSync(newPassword, 10);
@@ -394,10 +470,14 @@ app.get("/api/settings", authRequired, asyncHandler(async (_req, res) => {
 }));
 
 app.put("/api/settings", authRequired, asyncHandler(async (req, res) => {
-  const { storeName, phone, address, currency, invoiceFooter } = req.body;
+  const storeName = requireText(req.body.storeName, "Store name", 120);
+  const phone = normalizeText(req.body.phone, 40);
+  const address = normalizeText(req.body.address, 255);
+  const currency = normalizeText(req.body.currency || "USD", 12) || "USD";
+  const invoiceFooter = normalizeText(req.body.invoiceFooter, 255);
   await run(
     "UPDATE settings SET store_name = ?, phone = ?, address = ?, currency = ?, invoice_footer = ? WHERE id = 1",
-    [storeName, phone || "", address || "", currency || "USD", invoiceFooter || ""]
+    [storeName, phone, address, currency, invoiceFooter]
   );
   res.json(await queryOne("SELECT * FROM settings WHERE id = 1"));
 }));
@@ -405,11 +485,11 @@ app.put("/api/settings", authRequired, asyncHandler(async (req, res) => {
 app.post("/api/suppliers", authRequired, asyncHandler(async (req, res) => {
   const supplier = {
     id: req.body.id || makeId("sup"),
-    name: req.body.name,
-    contactPerson: req.body.contactPerson,
-    phone: req.body.phone,
-    email: req.body.email || "",
-    address: req.body.address || ""
+    name: requireText(req.body.name, "Supplier name", 120),
+    contactPerson: requireText(req.body.contactPerson, "Contact person", 120),
+    phone: requireText(req.body.phone, "Phone", 40),
+    email: normalizeText(req.body.email, 120),
+    address: normalizeText(req.body.address, 255)
   };
 
   await upsertSupplier(supplier);
@@ -429,17 +509,17 @@ app.delete("/api/suppliers/:id", authRequired, asyncHandler(async (req, res) => 
 app.post("/api/medicines", authRequired, asyncHandler(async (req, res) => {
   const medicine = {
     id: req.body.id || makeId("med"),
-    name: req.body.name,
-    category: req.body.category,
-    batchNo: req.body.batchNo,
-    supplierId: req.body.supplierId || "",
-    purchasePrice: Number(req.body.purchasePrice),
-    sellingPrice: Number(req.body.sellingPrice),
-    quantity: Number(req.body.quantity),
-    reorderLevel: Number(req.body.reorderLevel),
-    expiryDate: req.body.expiryDate,
-    location: req.body.location || "",
-    notes: req.body.notes || ""
+    name: requireText(req.body.name, "Medicine name", 120),
+    category: requireText(req.body.category, "Category", 80),
+    batchNo: requireText(req.body.batchNo, "Batch number", 80),
+    supplierId: normalizeText(req.body.supplierId, 80),
+    purchasePrice: requirePositiveNumber(req.body.purchasePrice, "Purchase price"),
+    sellingPrice: requirePositiveNumber(req.body.sellingPrice, "Selling price"),
+    quantity: requirePositiveNumber(req.body.quantity, "Quantity", { integer: true }),
+    reorderLevel: requirePositiveNumber(req.body.reorderLevel, "Reorder level", { integer: true }),
+    expiryDate: requireDate(req.body.expiryDate, "Expiry date"),
+    location: normalizeText(req.body.location, 80),
+    notes: normalizeText(req.body.notes, 255)
   };
 
   await upsertMedicine(medicine);
@@ -462,10 +542,16 @@ app.post("/api/sales", authRequired, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Medicine not found." });
   }
 
-  const quantity = Number(req.body.quantity);
-  const discountPercent = Number(req.body.discountPercent || 0);
+  const quantity = requirePositiveNumber(req.body.quantity, "Quantity", { allowZero: false, integer: true });
+  const discountPercent = requirePositiveNumber(req.body.discountPercent || 0, "Discount percent");
+  const saleDate = requireDate(req.body.saleDate, "Sale date");
+  const paymentMethod = requireText(req.body.paymentMethod, "Payment method", 40);
+  const customerName = normalizeText(req.body.customerName, 120);
   if (quantity > Number(medicine.quantity)) {
     return res.status(400).json({ error: "Sale quantity cannot be greater than available stock." });
+  }
+  if (discountPercent > 100) {
+    return res.status(400).json({ error: "Discount percent cannot be greater than 100." });
   }
 
   const subtotal = Number(medicine.selling_price) * quantity;
@@ -475,9 +561,9 @@ app.post("/api/sales", authRequired, asyncHandler(async (req, res) => {
     invoiceNumber: `INV-${String(Date.now()).slice(-6)}`,
     medicineId: medicine.id,
     quantity,
-    customerName: req.body.customerName || "",
-    saleDate: req.body.saleDate,
-    paymentMethod: req.body.paymentMethod,
+    customerName,
+    saleDate,
+    paymentMethod,
     discountPercent,
     discountAmount,
     cashierName: req.user.displayName,
@@ -643,7 +729,9 @@ app.post("/api/backup/import", authRequired, asyncHandler(async (req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: "Something went wrong on the server." });
+  res.status(error.status || 500).json({
+    error: error.status ? error.message : "Something went wrong on the server."
+  });
 });
 
 initializeDatabase()
